@@ -1,16 +1,17 @@
 import type { PaperSeed } from "@/lib/icai/foundation";
 import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { INTERMEDIATE_PAPERS } from "@/lib/icai/intermediate";
 import { FINAL_PAPERS } from "@/lib/icai/final";
 import type { IcaiLevel } from "@/lib/domain/types";
 
 /**
  * Paper definitions for all three ICAI levels (New Scheme).
  *
- * ⚠️ **Intermediate** still carries no chapter data — only paper identity, group and
- * marking flags. Foundation and Final are seeded (see icai/foundation.ts and
- * icai/final.ts). Screens must keep handling an empty `chapters` array honestly rather
- * than rendering as if the syllabus were complete, since Intermediate still hits that
- * path — `hasSyllabusData` is the check.
+ * All three levels now carry chapter data — see icai/foundation.ts, icai/intermediate.ts
+ * and icai/final.ts. `hasSyllabusData` and the empty-`chapters` handling on each screen
+ * are kept rather than removed: they're what makes adding or revising a level's seed a
+ * data change instead of a code change, and they're the honest fallback if a future
+ * level or paper ships without content.
  *
  * Paper names here follow the **New Scheme** as confirmed in PLAN.md §2 — note these
  * differ from the placeholder names in the Block 1 design mockup, which showed older
@@ -29,15 +30,7 @@ export function groupOf(paperNo: number): 1 | 2 {
   return paperNo <= 3 ? 1 : 2;
 }
 
-const INTERMEDIATE_PAPERS: PaperSeed[] = [
-  { id: "int-p1", paperNo: 1, name: "Advanced Accounting", category: "accounts", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-  { id: "int-p2", paperNo: 2, name: "Corporate and Other Laws", category: "law", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-  { id: "int-p3", paperNo: 3, name: "Taxation", category: "tax", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-  { id: "int-p4", paperNo: 4, name: "Cost and Management Accounting", category: "costing", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-  { id: "int-p5", paperNo: 5, name: "Auditing and Ethics", category: "audit", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-  { id: "int-p6", paperNo: 6, name: "Financial Management & Strategic Management", category: "fmsm", isObjective: false, hasNegativeMarking: false, maxMarks: 100, chapters: [] },
-];
-
+// Intermediate's papers live in icai/intermediate.ts.
 // Final's papers (with chapter data) live in icai/final.ts. Note on colour: Final has
 // two tax papers but only six palette colours, so Indirect Tax borrows the law colour to
 // keep all six visually distinct — that's chart legibility, not a claim about subject

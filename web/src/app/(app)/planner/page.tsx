@@ -6,7 +6,8 @@ import clsx from "clsx";
 import { useLocalState } from "@/lib/hooks/useLocalState";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { PLANNED_BLOCK_SYNC } from "@/lib/sync/syncConfigs";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { papersForAttempt } from "@/lib/icai/levels";
 import {
   newBlockId,
   totalMinutes,
@@ -52,6 +53,12 @@ export default function PlannerPage() {
   const [attempt] = useLocalState<Attempt | null>(ATTEMPT_KEY, null);
   const [situation] = useLocalState<Situation | null>(SITUATION_KEY, null);
 
+  // The paper picker (and every paper/chapter lookup below) tracks whatever level and
+  // group the student actually registered for — a Final student must never see
+  // Foundation's Accounting chapters in the add-block form just because that's the
+  // only level with real chapter data seeded so far.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
+
   const [view, setView] = useState<ViewMode>("week");
   const [weekAnchor, setWeekAnchor] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -91,6 +98,7 @@ export default function PlannerPage() {
       {view === "week" && (
         <WeekView
           blocks={blocks}
+          papers={papers}
           weekAnchor={weekAnchor}
           onWeekAnchor={setWeekAnchor}
           onAdd={addBlock}
@@ -103,6 +111,7 @@ export default function PlannerPage() {
         <DayView
           blocks={blocks}
           sessions={sessions}
+          papers={papers}
           date={selectedDate}
           onDateChange={setSelectedDate}
           onAdd={addBlock}
@@ -155,6 +164,7 @@ function ViewSwitcher({ view, onChange }: { view: ViewMode; onChange: (v: ViewMo
 
 function WeekView({
   blocks,
+  papers,
   weekAnchor,
   onWeekAnchor,
   onAdd,
@@ -162,6 +172,7 @@ function WeekView({
   onRemove,
 }: {
   blocks: PlannedBlock[];
+  papers: PaperSeed[];
   weekAnchor: Date;
   onWeekAnchor: (updater: (d: Date) => Date) => void;
   onAdd: (date: string, block: Omit<PlannedBlock, "id" | "date" | "completed">) => void;
@@ -219,6 +230,7 @@ function WeekView({
               label={`${weekdayShort(i)} ${formatDayLabel(day)}`}
               today={isToday(day)}
               blocks={dayBlocks}
+              papers={papers}
               isAdding={addingForDate === dateIso}
               onStartAdd={() => setAddingForDate(dateIso)}
               onCancelAdd={() => setAddingForDate(null)}
@@ -241,6 +253,7 @@ function DayColumn({
   label,
   today,
   blocks,
+  papers,
   isAdding,
   onStartAdd,
   onCancelAdd,
@@ -252,6 +265,7 @@ function DayColumn({
   label: string;
   today: boolean;
   blocks: PlannedBlock[];
+  papers: PaperSeed[];
   isAdding: boolean;
   onStartAdd: () => void;
   onCancelAdd: () => void;
@@ -268,12 +282,12 @@ function DayColumn({
 
       <div className="flex flex-col gap-1">
         {blocks.map((block) => (
-          <BlockRow key={block.id} block={block} onToggle={() => onToggle(block.id)} onRemove={() => onRemove(block.id)} />
+          <BlockRow key={block.id} block={block} papers={papers} onToggle={() => onToggle(block.id)} onRemove={() => onRemove(block.id)} />
         ))}
       </div>
 
       {isAdding ? (
-        <AddBlockForm onAdd={onAdd} onCancel={onCancelAdd} />
+        <AddBlockForm papers={papers} onAdd={onAdd} onCancel={onCancelAdd} />
       ) : (
         <button
           type="button"
@@ -289,14 +303,16 @@ function DayColumn({
 
 function BlockRow({
   block,
+  papers,
   onToggle,
   onRemove,
 }: {
   block: PlannedBlock;
+  papers: PaperSeed[];
   onToggle: () => void;
   onRemove: () => void;
 }) {
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === block.paperId);
+  const paper = papers.find((p) => p.id === block.paperId);
   const chapter = paper?.chapters.find((c) => c.id === block.chapterId);
   const color = paper ? PAPER_CATEGORY_COLOR_VAR[paper.category] : "var(--grey)";
 
@@ -343,24 +359,48 @@ function BlockRow({
 }
 
 function AddBlockForm({
+  papers,
   onAdd,
   onCancel,
   defaultStartTime,
 }: {
+  papers: PaperSeed[];
   onAdd: (block: Omit<PlannedBlock, "id" | "date" | "completed">) => void;
   onCancel: () => void;
   defaultStartTime?: string;
 }) {
-  const [paperId, setPaperId] = useState(FOUNDATION_PAPERS[0].id);
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === paperId)!;
-  const [chapterId, setChapterId] = useState(paper.chapters[0].id);
+  // Only papers with chapter data are selectable — Intermediate and Final currently
+  // carry paper identity but no chapters (see icai/levels.ts), so offering them here
+  // would either crash on `chapters[0]` or silently let a block point at nothing.
+  const schedulable = papers.filter((p) => p.chapters.length > 0);
+  const [paperId, setPaperId] = useState(schedulable[0]?.id ?? "");
+  const paper = schedulable.find((p) => p.id === paperId);
+  const [chapterId, setChapterId] = useState(paper?.chapters[0]?.id ?? "");
   const [activityType, setActivityType] = useState<ActivityType>("concept");
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [startTime, setStartTime] = useState(defaultStartTime ?? "");
 
   function handlePaperChange(nextId: string) {
     setPaperId(nextId);
-    setChapterId(FOUNDATION_PAPERS.find((p) => p.id === nextId)!.chapters[0].id);
+    setChapterId(schedulable.find((p) => p.id === nextId)?.chapters[0]?.id ?? "");
+  }
+
+  if (schedulable.length === 0) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface2 p-2">
+        <p className="text-[10px] leading-[1.4] text-dim">
+          Chapter data isn&rsquo;t loaded for your level yet, so a block can&rsquo;t be
+          scheduled against a specific chapter.
+        </p>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border py-1 text-[11px] font-semibold text-dim"
+        >
+          Close
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -376,7 +416,7 @@ function AddBlockForm({
         onChange={(e) => handlePaperChange(e.target.value)}
         className="w-full rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text"
       >
-        {FOUNDATION_PAPERS.map((p) => (
+        {schedulable.map((p) => (
           <option key={p.id} value={p.id}>
             P{p.paperNo} — {p.name}
           </option>
@@ -387,7 +427,7 @@ function AddBlockForm({
         onChange={(e) => setChapterId(e.target.value)}
         className="w-full rounded-md border border-border bg-surface px-2 py-1 text-[11px] text-text"
       >
-        {paper.chapters.map((c) => (
+        {paper?.chapters.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
           </option>
@@ -449,6 +489,7 @@ const DAY_END_HOUR = 23;
 function DayView({
   blocks,
   sessions,
+  papers,
   date,
   onDateChange,
   onAdd,
@@ -457,6 +498,7 @@ function DayView({
 }: {
   blocks: PlannedBlock[];
   sessions: LoggedSession[];
+  papers: PaperSeed[];
   date: Date;
   onDateChange: (d: Date) => void;
   onAdd: (date: string, block: Omit<PlannedBlock, "id" | "date" | "completed">) => void;
@@ -506,7 +548,7 @@ function DayView({
           <div className="mb-2 text-overline uppercase text-dim">Unscheduled today</div>
           <div className="flex flex-col gap-1">
             {unscheduled.map((block) => (
-              <BlockRow key={block.id} block={block} onToggle={() => onToggle(block.id)} onRemove={() => onRemove(block.id)} />
+              <BlockRow key={block.id} block={block} papers={papers} onToggle={() => onToggle(block.id)} onRemove={() => onRemove(block.id)} />
             ))}
           </div>
         </div>
@@ -550,11 +592,12 @@ function DayView({
                     <BlockRow
                       key={`b-${i}`}
                       block={item.block}
+                      papers={papers}
                       onToggle={() => onToggle(item.block.id)}
                       onRemove={() => onRemove(item.block.id)}
                     />
                   ) : (
-                    <LoggedSessionChip key={`s-${i}`} session={item.session} />
+                    <LoggedSessionChip key={`s-${i}`} session={item.session} papers={papers} />
                   ),
                 )}
                 {items.length === 0 && addingHour !== hour && (
@@ -568,6 +611,7 @@ function DayView({
                 )}
                 {addingHour === hour && (
                   <AddBlockForm
+                    papers={papers}
                     defaultStartTime={`${hour.toString().padStart(2, "0")}:00`}
                     onAdd={(block) => {
                       onAdd(dateIso, block);
@@ -585,8 +629,8 @@ function DayView({
   );
 }
 
-function LoggedSessionChip({ session }: { session: LoggedSession }) {
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === session.paperId);
+function LoggedSessionChip({ session, papers }: { session: LoggedSession; papers: PaperSeed[] }) {
+  const paper = papers.find((p) => p.id === session.paperId);
   const chapter = paper?.chapters.find((c) => c.id === session.chapterId);
   return (
     <div className="flex items-center gap-2 rounded-lg px-2 py-[6px]" style={{ background: "color-mix(in srgb, var(--green) 10%, transparent)" }}>

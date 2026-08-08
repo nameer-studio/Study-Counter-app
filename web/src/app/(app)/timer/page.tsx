@@ -1,8 +1,10 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { papersForAttempt } from "@/lib/icai/levels";
 import { useLocalState } from "@/lib/hooks/useLocalState";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { LOGGED_SESSION_SYNC } from "@/lib/sync/syncConfigs";
@@ -23,9 +25,11 @@ import {
   type TimerSession,
 } from "@/lib/domain/timer";
 import { newSessionId, type LoggedSession } from "@/lib/domain/loggedSession";
+import type { Attempt } from "@/lib/domain/attempt";
 
 const SESSION_KEY = "sc-active-session";
 const LOG_KEY = "sc-logged-sessions";
+const ATTEMPT_KEY = "sc-attempt";
 
 /**
  * C1 Timer setup + C2 Active session, combined on one route per WEB_PLAN.md's route
@@ -50,14 +54,20 @@ export default function TimerPage() {
 function TimerPageInner() {
   const [session, setSession] = useLocalState<TimerSession | null>(SESSION_KEY, null);
   const [, setLog] = useSyncedArrayState<LoggedSession>(LOG_KEY, [], LOGGED_SESSION_SYNC);
+  const [attempt] = useLocalState<Attempt | null>(ATTEMPT_KEY, null);
+
+  // Same paper set as the Planner — whatever the student's actual attempt level and
+  // group are, never a hardcoded Foundation regardless of who's signed in.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
 
   if (!session) {
-    return <TimerSetup onStart={(s) => setSession(s)} />;
+    return <TimerSetup papers={papers} onStart={(s) => setSession(s)} />;
   }
 
   return (
     <ActiveSession
       session={session}
+      papers={papers}
       onPause={() => setSession(pauseSession(session))}
       onResume={() => setSession(resumeSession(session))}
       onStop={() => {
@@ -79,18 +89,29 @@ function TimerPageInner() {
   );
 }
 
-function TimerSetup({ onStart }: { onStart: (session: TimerSession) => void }) {
+function TimerSetup({
+  papers,
+  onStart,
+}: {
+  papers: PaperSeed[];
+  onStart: (session: TimerSession) => void;
+}) {
   const params = useSearchParams();
+
+  // Only papers with chapter data can actually be studied against — Intermediate and
+  // Final currently carry paper identity but no chapters (see icai/levels.ts).
+  const schedulable = papers.filter((p) => p.chapters.length > 0);
 
   // Query params only apply if they actually resolve to real seeded data — a stale or
   // malformed link (e.g. pointing at an unseeded Inter/Final paper) falls back to the
   // ordinary defaults rather than crashing or opening an inconsistent state.
-  const requestedPaper = FOUNDATION_PAPERS.find((p) => p.id === params.get("paper"));
-  const initialPaper = requestedPaper ?? FOUNDATION_PAPERS[0];
+  const requestedPaper = schedulable.find((p) => p.id === params.get("paper"));
+  const initialPaper = requestedPaper ?? schedulable[0];
   const requestedChapterId = params.get("chapter");
   const initialChapterId =
     requestedPaper?.chapters.find((c) => c.id === requestedChapterId)?.id ??
-    initialPaper.chapters[0].id;
+    initialPaper?.chapters[0]?.id ??
+    "";
   const requestedActivity = params.get("activity");
   const initialActivity: ActivityType = (ACTIVITY_TYPES as readonly string[]).includes(
     requestedActivity ?? "",
@@ -98,15 +119,29 @@ function TimerSetup({ onStart }: { onStart: (session: TimerSession) => void }) {
     ? (requestedActivity as ActivityType)
     : "concept";
 
-  const [paperId, setPaperId] = useState(initialPaper.id);
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === paperId)!;
+  const [paperId, setPaperId] = useState(initialPaper?.id ?? "");
+  const paper = schedulable.find((p) => p.id === paperId);
   const [chapterId, setChapterId] = useState(initialChapterId);
   const [activity, setActivity] = useState<ActivityType>(initialActivity);
 
   function handlePaperChange(nextId: string) {
     setPaperId(nextId);
-    const nextPaper = FOUNDATION_PAPERS.find((p) => p.id === nextId)!;
-    setChapterId(nextPaper.chapters[0].id);
+    setChapterId(schedulable.find((p) => p.id === nextId)?.chapters[0]?.id ?? "");
+  }
+
+  if (schedulable.length === 0) {
+    return (
+      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-3 px-4 py-20 text-center sm:px-6">
+        <div className="text-title text-text">Chapter data isn&rsquo;t loaded yet</div>
+        <p className="text-body text-dim">
+          Your attempt&rsquo;s papers don&rsquo;t have chapters seeded yet, so there&rsquo;s
+          nothing to start a session against — only Foundation is fully loaded right now.
+        </p>
+        <Link href="/attempt" className="mt-2 rounded-card border border-border px-6 py-3 text-[15px] font-bold text-text">
+          Check my attempt
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -123,7 +158,7 @@ function TimerSetup({ onStart }: { onStart: (session: TimerSession) => void }) {
           onChange={(e) => handlePaperChange(e.target.value)}
           className="w-full rounded-xl border border-border bg-surface2 px-4 py-3 text-body text-text"
         >
-          {FOUNDATION_PAPERS.map((p) => (
+          {schedulable.map((p) => (
             <option key={p.id} value={p.id}>
               Paper {p.paperNo} — {p.name}
             </option>
@@ -141,7 +176,7 @@ function TimerSetup({ onStart }: { onStart: (session: TimerSession) => void }) {
           onChange={(e) => setChapterId(e.target.value)}
           className="w-full rounded-xl border border-border bg-surface2 px-4 py-3 text-body text-text"
         >
-          {paper.chapters.map((c) => (
+          {paper?.chapters.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -174,11 +209,13 @@ function TimerSetup({ onStart }: { onStart: (session: TimerSession) => void }) {
 
 function ActiveSession({
   session,
+  papers,
   onPause,
   onResume,
   onStop,
 }: {
   session: TimerSession;
+  papers: PaperSeed[];
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -192,11 +229,15 @@ function ActiveSession({
     return () => clearInterval(id);
   }, [session]);
 
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === session.paperId)!;
-  const chapter = paper.chapters.find((c) => c.id === session.chapterId)!;
+  // A session already in progress was necessarily started from `schedulable` in
+  // TimerSetup, so its paper/chapter are guaranteed to resolve against the current
+  // attempt's papers — this can only be undefined if the attempt itself changed
+  // mid-session, which the fallback labels handle rather than crashing on.
+  const paper = papers.find((p) => p.id === session.paperId);
+  const chapter = paper?.chapters.find((c) => c.id === session.chapterId);
   const paused = isPaused(session);
   const elapsed = elapsedMs(session);
-  const color = PAPER_CATEGORY_COLOR_VAR[paper.category];
+  const color = paper ? PAPER_CATEGORY_COLOR_VAR[paper.category] : "var(--grey)";
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-6 px-4 py-10 sm:px-6">
@@ -210,9 +251,9 @@ function ActiveSession({
       />
 
       <div className="text-center">
-        <div className="text-subtitle text-text">{chapter.name}</div>
+        <div className="text-subtitle text-text">{chapter?.name ?? "Chapter"}</div>
         <div className="mt-1 text-caption text-dim">
-          Paper {paper.paperNo} — {paper.name}
+          {paper ? `Paper ${paper.paperNo} — ${paper.name}` : ""}
         </div>
         {paused && (
           <div className="mt-2 text-label font-semibold" style={{ color: "var(--amber)" }}>

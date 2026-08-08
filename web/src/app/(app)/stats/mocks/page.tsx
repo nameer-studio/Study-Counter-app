@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import type { PaperSeed } from "@/lib/icai/foundation";
-import { papersForAttempt } from "@/lib/icai/levels";
+import { papersForAttempt, paperById } from "@/lib/icai/levels";
 import { useLocalState } from "@/lib/hooks/useLocalState";
 import type { Attempt } from "@/lib/domain/attempt";
 import { useSeedOnce } from "@/lib/hooks/useSeededLocalState";
@@ -57,11 +57,15 @@ export default function MocksPage() {
   // exemption tracker both previously listed Foundation whatever the level.
   const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
 
-  const objectivePapers = papers.filter((p) => p.isObjective && p.hasNegativeMarking);
-
   const series = mockSeries(mocks);
   const mcq = mcqAnalysis(mocks);
   const exemptions = exemptionStatus(mocks, papers);
+
+  // Whatever chart 17 is about to render: the analysed papers if there are any, else the
+  // student's own objective papers so the caption still says something true.
+  const analysedPapers = mcq.map((a) => paperById(a.paperId)).filter((p): p is PaperSeed => !!p);
+  const captionPapers =
+    analysedPapers.length > 0 ? analysedPapers : papers.filter((p) => p.isObjective && p.hasNegativeMarking);
   const projection = projectPass(mocks);
   const sorted = [...mocks].sort((a, b) => b.date - a.date);
 
@@ -104,19 +108,17 @@ export default function MocksPage() {
         </ChartCard>
 
         <ChartCard title="17 · MCQ accuracy &amp; negative marking">
-          {/* Named from the student's own objective papers rather than hardcoded to
-              Foundation's — negative marking only applies where the seed data says it
-              does, and at Intermediate/Final no paper carries it at all. */}
-          {objectivePapers.length > 0 ? (
-            <p className="mb-3 text-[10px] text-dim">
-              {objectivePapers.map((p) => `P${p.paperNo}`).join(" & ")} ·{" "}
-              −{objectivePapers[0].negativeMarkPerWrong ?? 0.25} per wrong answer
-            </p>
-          ) : (
-            <p className="mb-3 text-[10px] text-dim">
-              None of your papers carry negative marking.
-            </p>
-          )}
+          {/* Describes the papers actually analysed below, falling back to the student's
+              own objective papers when there's nothing to analyse yet. Naming a fixed
+              set (it was hardcoded to Foundation's P3 & P4) contradicted the cards
+              whenever the analysed mocks came from anywhere else. */}
+          <p className="mb-3 text-[10px] text-dim">
+            {captionPapers.length > 0
+              ? `${captionPapers.map((p) => `P${p.paperNo}`).join(" & ")} · −${
+                  captionPapers[0].negativeMarkPerWrong ?? 0.25
+                } per wrong answer`
+              : "None of your papers carry negative marking."}
+          </p>
           {mcq.length === 0 ? (
             <p className="text-caption text-dim">
               No objective-paper mocks logged with a question breakdown yet.

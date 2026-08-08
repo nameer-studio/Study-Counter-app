@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Design tokens — copied verbatim from the `T` map in
+ * `Study Counter Design System.dc.html`. This file is the single source of truth for
+ * colour on the web, exactly as Color.kt is on Android. Do not hand-tune against
+ * screenshots.
+ *
+ * Dark is the default/primary theme (much of the usage is late-night study).
+ */
+
+:root,
+:root[data-theme="dark"] {
+  --bg: #0f111a;
+  --surface: #181b26;
+  --surface2: #212533;
+  --border: #2c3140;
+  --text: #e9ebf2;
+  --dim: #9ba2b4;
+  --primary: #7c88f2;
+  --primary-on: #0f111a;
+  --green: #34c77b;
+  --amber: #e8a33d;
+  --red: #f2666a;
+  --grey: #8790a0;
+  --streak: #ffb020;
+  --ring: #252a38;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --surface2: #f3f5f9;
+  --border: #dfe3eb;
+  --text: #15171e;
+  --dim: #5b6270;
+  --primary: #3d49c9;
+  --primary-on: #ffffff;
+  --green: #12925a;
+  --amber: #b7791f;
+  --red: #ce3438;
+  --grey: #8a8f98;
+  --streak: #da7a00;
+  --ring: #e4e7ee;
+  color-scheme: light;
+}
+
+:root[data-theme="amoled"] {
+  --bg: #000000;
+  --surface: #0a0c12;
+  --surface2: #13161f;
+  --border: #23262f;
+  --text: #f1f2f8;
+  --dim: #8e95a7;
+  --primary: #8b96f5;
+  --primary-on: #000000;
+  --green: #3ad07f;
+  --amber: #f0ac46;
+  --red: #f76d71;
+  --grey: #8790a0;
+  --streak: #ffb522;
+  --ring: #181b24;
+  color-scheme: dark;
+}
+
+/* Six paper colours — fixed mapping, colour-blind-safe (no red/green pair),
+   identical across all three themes. */
+:root {
+  --paper-accounts: #4c8dff;
+  --paper-law: #f5822a;
+  --paper-tax: #2ab7ca;
+  --paper-costing: #a970ff;
+  --paper-audit: #e255a1;
+  --paper-fmsm: #c9a227;
+}
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Timers, countdowns and marks must never reflow as digits tick. Applied via
+     the .tnum utility rather than globally, so proportional figures stay the
+     default for body copy. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}

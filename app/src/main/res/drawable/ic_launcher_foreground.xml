@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Countdown-ring + clock-tick glyph, per the Block 8 design brief: solid deep
+     indigo background, no gradient/mascot/wordmark. Same mark used as the
+     wordmark badge in the Design System handoff header. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M54,58.2 m-22.4,0 a22.4,22.4 0 1,0 44.8,0 a22.4,22.4 0 1,0 -44.8,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6.7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,58.2 L54,47.0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6.7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M47.0,27.4 L61.0,27.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6.7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

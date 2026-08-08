@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Compose owns all in-app theming (see ui/theme/Theme.kt) — this XML theme only
+        controls the pre-Compose window background so cold start doesn't flash white.
+        Background matches the dark-theme token (#0F111A) since dark is the app default.
+    -->
+    <style name="Theme.StudyCounter" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:statusBarColor">@color/window_background</item>
+        <item name="android:navigationBarColor">@color/window_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

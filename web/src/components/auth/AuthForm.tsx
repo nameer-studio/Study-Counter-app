@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
 
@@ -99,6 +100,14 @@ export function AuthForm({
       >
         {mode === "signUp" ? "Already have an account? Sign in" : "New here? Create an account"}
       </button>
+
+      {/* Only offered when signing in — it's noise on a form for someone who has no
+          account yet, and the wrong-password error is where people look for it. */}
+      {mode === "signIn" && (
+        <Link href="/forgot-password" className="text-center text-caption text-dim hover:text-text">
+          Forgot your password?
+        </Link>
+      )}
     </form>
   );
 }

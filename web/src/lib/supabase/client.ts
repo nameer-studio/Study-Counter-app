@@ -18,6 +18,11 @@ export const supabase = createClient(url, anonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false,
+    // Required by the password-reset flow: Supabase's recovery email lands the student
+    // back on /reset-password with the recovery token in the URL, and only this lets the
+    // client read it and establish the short-lived session that authorises setting a new
+    // password. It's a no-op on every other route, since nothing else puts auth
+    // parameters in the URL.
+    detectSessionInUrl: true,
   },
 });

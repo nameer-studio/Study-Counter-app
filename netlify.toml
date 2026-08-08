@@ -1,6 +1,12 @@
 [build]
   base = "web"
   command = "npm run build"
+  # Relative to `base`, per Netlify's file-based config docs ("all paths configured in
+  # the netlify.toml should be absolute paths relative to the base directory"), so this
+  # resolves to web/.next — NOT "web/.next", which would resolve to web/web/.next.
+  # Setting it here also overrides the site's UI publish setting, which defaulted to
+  # `web` and collided with the base directory.
+  publish = ".next"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

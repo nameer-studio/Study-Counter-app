@@ -42,17 +42,9 @@ export function MockTrendChart({ series }: { series: MockSeries[] }) {
         <text x="6" y={top + 4} className="tnum" style={{ font: "600 8px var(--font-inter)", fill: "var(--dim)" }}>100</text>
         <text x="12" y={bottom + 3} style={{ font: "600 8px var(--font-inter)", fill: "var(--dim)" }}>0</text>
 
-        {/* The 40-mark line — furniture, not decoration. */}
+        {/* The 40-mark line — furniture, not decoration. Drawn under the series so it
+            never hides a data point sitting on the threshold itself. */}
         <line x1={left} y1={passY} x2={right} y2={passY} stroke="var(--red)" strokeWidth="3" />
-        <rect x={right - 84} y={passY - 18} width="84" height="15" rx="3" fill="var(--red)" />
-        <text
-          x={right - 42}
-          y={passY - 7}
-          textAnchor="middle"
-          style={{ font: "800 9px var(--font-inter)", fill: "var(--primary-on)" }}
-        >
-          40 · PASS MARK
-        </text>
 
         {series.map((s) => (
           <g key={s.paperId}>
@@ -73,6 +65,21 @@ export function MockTrendChart({ series }: { series: MockSeries[] }) {
             ))}
           </g>
         ))}
+
+        {/* The label rides above the series deliberately: the brief says this line must
+            never read as subordinate to the data, and mock marks cluster either side of
+            40 — so drawing the chip underneath left the text struck through by whichever
+            papers happened to score near the pass mark, which is precisely when a student
+            most needs to read it. */}
+        <rect x={right - 84} y={passY - 18} width="84" height="15" rx="3" fill="var(--red)" />
+        <text
+          x={right - 42}
+          y={passY - 7}
+          textAnchor="middle"
+          style={{ font: "800 9px var(--font-inter)", fill: "var(--primary-on)" }}
+        >
+          40 · PASS MARK
+        </text>
       </svg>
 
       <div className="flex flex-wrap gap-3 text-[10px] text-dim">

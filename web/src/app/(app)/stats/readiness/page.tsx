@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import clsx from "clsx";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { LEVELS, papersForAttempt, hasSyllabusData, paperById } from "@/lib/icai/levels";
 import { useSeedOnce } from "@/lib/hooks/useSeededLocalState";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { useSyncedRecordState } from "@/lib/hooks/useSyncedRecordState";
@@ -44,15 +44,25 @@ const ATTEMPT_KEY = "sc-attempt";
  * to leave a student with a red line and no answer.
  */
 export default function ReadinessPage() {
+  // Resolved first: every sample-data seed below is Foundation-specific, so it's gated on
+  // the student's actual level. Seeding it for an Intermediate or Final student would
+  // render fabricated hours, mocks and revision progress as if they were real.
+  const [attempt, setAttempt] = useSeedOnce<Attempt | null>(
+    useSyncedLocalState<Attempt | null>(ATTEMPT_KEY, null, ATTEMPT_SYNC),
+    () => defaultAttempt("foundation"),
+    (a) => a === null,
+  );
+  const isFoundation = attempt?.level === "foundation";
+
   const [sessions] = useSeedOnce<LoggedSession[]>(
     useSyncedArrayState<LoggedSession>(LOG_KEY, [], LOGGED_SESSION_SYNC),
     generateDemoSessions,
-    (s) => s.length === 0,
+    (s) => s.length === 0 && isFoundation,
   );
   const [mocks] = useSeedOnce<MockTest[]>(
     useSyncedArrayState<MockTest>(MOCKS_KEY, [], MOCK_TEST_SYNC),
     generateDemoMocks,
-    (m) => m.length === 0,
+    (m) => m.length === 0 && isFoundation,
   );
   // Derived from the same deterministic session generator, so hours and recorded
   // progress tell one story — see generateDemoRounds for why it can't read the
@@ -60,12 +70,7 @@ export default function ReadinessPage() {
   const [rounds] = useSeedOnce<Record<string, RevisionRound>>(
     useSyncedRecordState<RevisionRound>(ROUNDS_KEY, {}, REVISION_ROUNDS_SYNC),
     () => generateDemoRounds(),
-    (r) => Object.keys(r).length === 0,
-  );
-  const [attempt, setAttempt] = useSeedOnce<Attempt | null>(
-    useSyncedLocalState<Attempt | null>(ATTEMPT_KEY, null, ATTEMPT_SYNC),
-    () => defaultAttempt("foundation"),
-    (a) => a === null,
+    (r) => Object.keys(r).length === 0 && isFoundation,
   );
 
   if (!attempt) {
@@ -76,12 +81,32 @@ export default function ReadinessPage() {
     );
   }
 
+  // Every figure on this screen is computed against the student's own papers. Reading a
+  // fixed Foundation list here was actively dangerous: a Final student saw Foundation's
+  // 40-chapter/382-hour syllabus and a "finishing early" verdict derived from a syllabus
+  // they aren't sitting.
+  const papers = papersForAttempt(attempt.level, attempt.group);
+
+  if (!hasSyllabusData(attempt.level)) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-20 text-center sm:px-6">
+        <div className="text-title text-text">Readiness needs your syllabus</div>
+        <p className="text-body text-dim">
+          Chapter data for {LEVELS[attempt.level].label} isn&rsquo;t loaded yet, so pace
+          and burn-down can&rsquo;t be computed — only Foundation is seeded right now.
+          Showing a forecast built on another level&rsquo;s syllabus would be worse than
+          showing none.
+        </p>
+      </div>
+    );
+  }
+
   const daysLeft = daysUntilExam(attempt);
-  const burnDown = buildBurnDown(FOUNDATION_PAPERS, rounds, sessions, attempt);
-  const burnUp = buildBurnUp(FOUNDATION_PAPERS, sessions, attempt);
-  const readiness = paperReadiness(FOUNDATION_PAPERS, rounds);
+  const burnDown = buildBurnDown(papers, rounds, sessions, attempt);
+  const burnUp = buildBurnUp(papers, sessions, attempt);
+  const readiness = paperReadiness(papers, rounds);
   const weakest = weakestPaper(readiness);
-  const effort = requiredEffort(FOUNDATION_PAPERS, rounds, sessions, attempt);
+  const effort = requiredEffort(papers, rounds, sessions, attempt);
   const projection = projectPass(mocks);
 
   const overshoot = burnDown.overshootDays;
@@ -95,7 +120,7 @@ export default function ReadinessPage() {
         <div>
           <h1 className="text-title text-text">Attempt readiness</h1>
           <div className="mt-[2px] text-caption text-dim">
-            CA Foundation · {attempt.session.toUpperCase()} {attempt.year} ·{" "}
+            CA {LEVELS[attempt.level].label} · {attempt.session.toUpperCase()} {attempt.year} ·{" "}
             <span className="tnum font-semibold" style={{ color: daysLeft < 30 ? "var(--red)" : "var(--text)" }}>
               {daysLeft} days left
             </span>
@@ -219,7 +244,7 @@ export default function ReadinessPage() {
               40-mark minimum:{" "}
               {projection.papersUnderMinimum
                 .map((p) => {
-                  const paper = FOUNDATION_PAPERS.find((fp) => fp.id === p.paperId);
+                  const paper = paperById(p.paperId);
                   return `${paper ? paper.name : p.paperId} (${p.marks})`;
                 })
                 .join(", ")}

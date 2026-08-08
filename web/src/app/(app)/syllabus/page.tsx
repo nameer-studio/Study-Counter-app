@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { LEVELS, papersForAttempt, hasSyllabusData } from "@/lib/icai/levels";
 import { paperWeightedProgress } from "@/lib/domain/syllabus";
+import { useLocalState } from "@/lib/hooks/useLocalState";
 import { useSyncedRecordState } from "@/lib/hooks/useSyncedRecordState";
 import { REVISION_ROUNDS_SYNC, CHAPTER_CONFIDENCE_SYNC } from "@/lib/sync/syncConfigs";
+import type { Attempt } from "@/lib/domain/attempt";
 import { RevisionRoundIndicator } from "@/components/ui/RevisionRoundIndicator";
 import { ConfidenceRating } from "@/components/ui/ConfidenceRating";
 import {
@@ -37,8 +39,16 @@ export default function SyllabusPage() {
     {},
     CHAPTER_CONFIDENCE_SYNC,
   );
-  const [selectedPaperId, setSelectedPaperId] = useState(FOUNDATION_PAPERS[0].id);
-  const selectedPaper = FOUNDATION_PAPERS.find((p) => p.id === selectedPaperId)!;
+  const [attempt, , attemptHydrated] = useLocalState<Attempt | null>("sc-attempt", null);
+
+  // Papers follow the registered attempt, not a fixed Foundation list — a Final student
+  // was previously shown Foundation's four papers and their chapters outright.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
+  const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
+  // Falls back to the first paper rather than pinning a stale selection: `papers` changes
+  // when the student edits their attempt, and the previously selected id may no longer
+  // exist in the new level.
+  const selectedPaper = papers.find((p) => p.id === selectedPaperId) ?? papers[0];
 
   function advance(chapterId: string) {
     setRounds((prev) => ({
@@ -51,12 +61,38 @@ export default function SyllabusPage() {
     setConfidence((prev) => ({ ...prev, [chapterId]: level }));
   }
 
+  if (!attemptHydrated) return null;
+
+  if (!attempt || !hasSyllabusData(attempt.level)) {
+    return (
+      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-20 text-center sm:px-6">
+        <div className="text-title text-text">
+          {attempt ? `${LEVELS[attempt.level].label} syllabus isn't loaded yet` : "No attempt set up yet"}
+        </div>
+        <p className="text-body text-dim">
+          {attempt
+            ? "Chapter-wise content for this level hasn't been seeded — only Foundation is loaded right now."
+            : "Chapter tracking needs your attempt details first."}
+        </p>
+        <Link
+          href={attempt ? "/attempt" : "/onboarding"}
+          className="mt-2 rounded-card border border-border px-6 py-3 text-[15px] font-bold text-text"
+        >
+          {attempt ? "Check my attempt" : "Set up now"}
+        </Link>
+      </div>
+    );
+  }
+
+  // `hasSyllabusData` guarantees this level has papers, so this only guards the type.
+  if (!selectedPaper) return null;
+
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-6 sm:px-6 lg:flex-row lg:items-start">
       {/* ---- Paper list ---- */}
       <div className="flex flex-col gap-2 lg:w-72 lg:flex-none">
         <div className="flex items-center justify-between px-1">
-          <h1 className="text-title text-text">CA Foundation syllabus</h1>
+          <h1 className="text-title text-text">CA {LEVELS[attempt.level].label} syllabus</h1>
           <Link href="/attempt" className="text-caption font-semibold" style={{ color: "var(--primary)" }}>
             My attempt →
           </Link>
@@ -65,10 +101,10 @@ export default function SyllabusPage() {
           Tap a paper to open its chapters. Tap the pips to advance a chapter&rsquo;s revision
           round, or the bars to rate your confidence 1&ndash;5.
         </p>
-        {FOUNDATION_PAPERS.map((paper) => {
+        {papers.map((paper) => {
           const progress = paperWeightedProgress(paper, rounds);
           const color = PAPER_CATEGORY_COLOR_VAR[paper.category];
-          const active = paper.id === selectedPaperId;
+          const active = paper.id === selectedPaper?.id;
           return (
             <button
               key={paper.id}

@@ -1,5 +1,6 @@
 import type { LoggedSession } from "@/lib/domain/loggedSession";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { ALL_PAPERS } from "@/lib/icai/levels";
 import { ACTIVITY_LABEL, type ActivityType } from "@/lib/domain/types";
 
 /**
@@ -108,14 +109,22 @@ const PRACTICE_ACTIVITIES: ActivityType[] = ["practice", "mockTest"];
  * Generates findings from actual behaviour. Returns only what the data supports —
  * an empty list is a valid, honest result for a student with little history.
  */
-export function generateFindings(sessions: LoggedSession[], now: number = Date.now()): Finding[] {
+export function generateFindings(
+  sessions: LoggedSession[],
+  /** The student's own papers. The "never touched this paper" finding names every paper
+   *  in this list, so passing a level the student isn't sitting would invent advice about
+   *  papers they'll never take. Defaults to every paper for the ratio checks, which are
+   *  driven by logged sessions rather than by the list itself. */
+  papers: PaperSeed[] = ALL_PAPERS,
+  now: number = Date.now(),
+): Finding[] {
   const findings: Finding[] = [];
   if (sessions.length === 0) return findings;
 
   // ---- 1. Reading-vs-practice ratio, per paper ----
   // A paper studied almost entirely by reading is the classic way CA students fail:
   // recognition feels like knowledge until you have to write it under time pressure.
-  for (const paper of FOUNDATION_PAPERS) {
+  for (const paper of papers) {
     const own = sessions.filter((s) => s.paperId === paper.id);
     const total = own.reduce((sum, s) => sum + s.durationMs, 0);
     if (total < 3 * 3_600_000) continue; // too little to judge
@@ -140,7 +149,7 @@ export function generateFindings(sessions: LoggedSession[], now: number = Date.n
   }
 
   // ---- 2. Neglected papers ----
-  for (const paper of FOUNDATION_PAPERS) {
+  for (const paper of papers) {
     const own = sessions.filter((s) => s.paperId === paper.id);
     if (own.length === 0) {
       findings.push({

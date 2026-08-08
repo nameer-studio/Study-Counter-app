@@ -57,6 +57,23 @@ export const LEVELS: Record<IcaiLevel, LevelPapers> = {
   final: { level: "final", label: "Final", hasGroups: true, papers: FINAL_PAPERS },
 };
 
+/** Every paper across all three levels. */
+export const ALL_PAPERS: PaperSeed[] = [
+  ...FOUNDATION_PAPERS,
+  ...INTERMEDIATE_PAPERS,
+  ...FINAL_PAPERS,
+];
+
+/**
+ * Resolve a paper by id without knowing its level — for turning a stored `paperId` on a
+ * session, mock or block back into a name/colour. Deliberately level-agnostic: these
+ * lookups previously searched Foundation only, so an Intermediate or Final student saw
+ * raw ids (or the wrong paper) wherever their own history was rendered.
+ */
+export function paperById(paperId: string): PaperSeed | undefined {
+  return ALL_PAPERS.find((p) => p.id === paperId);
+}
+
 export type GroupScope = "none" | "I" | "II" | "both";
 
 /** Papers for a level, narrowed to the chosen group. Foundation ignores [group] —

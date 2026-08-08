@@ -1,4 +1,5 @@
-import { FOUNDATION_PAPERS, type PaperSeed } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { ALL_PAPERS, paperById } from "@/lib/icai/levels";
 import { PAPER_CATEGORY_COLOR_VAR } from "@/lib/domain/types";
 import {
   PASS_MARKS_PER_PAPER,
@@ -18,7 +19,9 @@ export interface MockSeries {
 }
 
 export function mockSeries(mocks: MockTest[]): MockSeries[] {
-  return FOUNDATION_PAPERS.map((paper) => ({
+  // All levels — papers with no logged mocks are dropped below, so only papers the
+  // student actually sat a mock for appear, whichever level they're registered at.
+  return ALL_PAPERS.map((paper) => ({
     paperId: paper.id,
     name: paper.name,
     color: PAPER_CATEGORY_COLOR_VAR[paper.category],
@@ -53,7 +56,7 @@ export function mcqAnalysis(mocks: MockTest[]): McqAnalysis[] {
   const latest = latestMockByPaper(mocks);
   const out: McqAnalysis[] = [];
 
-  for (const paper of FOUNDATION_PAPERS) {
+  for (const paper of ALL_PAPERS) {
     if (!paper.isObjective || !paper.hasNegativeMarking) continue;
     const mock = latest.get(paper.id);
     if (!mock || mock.correctCount === undefined || mock.wrongCount === undefined) continue;
@@ -96,8 +99,10 @@ export interface ExemptionStatus {
  * where exemptions actually exist. Deliberately labelled as mock-based, never as a
  * granted exemption.
  */
-export function exemptionStatus(mocks: MockTest[]): ExemptionStatus[] {
-  return FOUNDATION_PAPERS.map((paper: PaperSeed) => {
+export function exemptionStatus(mocks: MockTest[], papers: PaperSeed[]): ExemptionStatus[] {
+  // Unlike the other aggregations here, this emits a row for every paper whether or not
+  // a mock exists — so it has to be the student's own papers, not a fixed list.
+  return papers.map((paper: PaperSeed) => {
     const own = mocks.filter((m) => m.paperId === paper.id);
     const best = own.length > 0 ? Math.max(...own.map((m) => m.marksObtained)) : null;
     return {
@@ -112,10 +117,10 @@ export function exemptionStatus(mocks: MockTest[]): ExemptionStatus[] {
 }
 
 export function paperNameFor(paperId: string): string {
-  return FOUNDATION_PAPERS.find((p) => p.id === paperId)?.name ?? paperId;
+  return paperById(paperId)?.name ?? paperId;
 }
 
 export function paperColorFor(paperId: string): string {
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === paperId);
+  const paper = paperById(paperId);
   return paper ? PAPER_CATEGORY_COLOR_VAR[paper.category] : "var(--grey)";
 }

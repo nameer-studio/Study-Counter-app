@@ -1,7 +1,8 @@
 import type { LoggedSession } from "@/lib/domain/loggedSession";
 import type { ActivityType, PaperCategory } from "@/lib/domain/types";
 import { ACTIVITY_TYPES, PAPER_CATEGORY_COLOR_VAR, PAPER_CATEGORY_LABEL } from "@/lib/domain/types";
-import { FOUNDATION_PAPERS, type PaperSeed } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { ALL_PAPERS, paperById } from "@/lib/icai/levels";
 import { isoDate } from "@/lib/domain/week";
 
 /**
@@ -14,7 +15,7 @@ import { isoDate } from "@/lib/domain/week";
 export type RangeDays = 7 | 30 | 90 | 0; // 0 = All
 
 function paperFor(paperId: string): PaperSeed | undefined {
-  return FOUNDATION_PAPERS.find((p) => p.id === paperId);
+  return paperById(paperId);
 }
 
 function inRange(session: LoggedSession, days: RangeDays, now: number): boolean {
@@ -157,7 +158,9 @@ export function paperBreakdown(sessions: LoggedSession[], days: RangeDays, now: 
   for (const s of filtered) {
     byPaper.set(s.paperId, (byPaper.get(s.paperId) ?? 0) + s.durationMs);
   }
-  return FOUNDATION_PAPERS.map((paper) => {
+  // All levels, not just Foundation — zero-hour papers are filtered out below, so this
+  // surfaces exactly the papers the student actually logged against, whatever level.
+  return ALL_PAPERS.map((paper) => {
     const ms = byPaper.get(paper.id) ?? 0;
     return {
       category: paper.category,
@@ -186,7 +189,7 @@ const ACTIVITY_MIX_COLOR: Record<ActivityType, string> = {
 export function activityMixByPaper(sessions: LoggedSession[], days: RangeDays, now: number = Date.now()): ActivityRow[] {
   const filtered = sessions.filter((s) => inRange(s, days, now));
   const rows: ActivityRow[] = [];
-  for (const paper of FOUNDATION_PAPERS) {
+  for (const paper of ALL_PAPERS) {
     const paperSessions = filtered.filter((s) => s.paperId === paper.id);
     const totalMs = paperSessions.reduce((sum, s) => sum + s.durationMs, 0);
     if (totalMs === 0) continue;

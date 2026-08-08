@@ -3,7 +3,9 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import clsx from "clsx";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { papersForAttempt, paperById } from "@/lib/icai/levels";
+import { useLocalState } from "@/lib/hooks/useLocalState";
+import type { Attempt } from "@/lib/domain/attempt";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { useSyncedRecordState } from "@/lib/hooks/useSyncedRecordState";
 import { LOGGED_SESSION_SYNC, REVISION_ROUNDS_SYNC, CHAPTER_CONFIDENCE_SYNC } from "@/lib/sync/syncConfigs";
@@ -38,8 +40,12 @@ export default function PaperDetailPage() {
   const [sessions] = useSyncedArrayState<LoggedSession>(LOG_KEY, [], LOGGED_SESSION_SYNC);
   const [rounds] = useSyncedRecordState<RevisionRound>(ROUNDS_KEY, {}, REVISION_ROUNDS_SYNC);
   const [confidence] = useSyncedRecordState<number>(CONFIDENCE_KEY, {}, CHAPTER_CONFIDENCE_SYNC);
+  const [attempt] = useLocalState<Attempt | null>("sc-attempt", null);
 
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === params.paperId);
+  // The switcher lists the student's own papers; the paper itself is resolved by id
+  // across all levels so a deep link to a paper still works.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
+  const paper = paperById(params.paperId);
 
   if (!paper) {
     return (
@@ -85,7 +91,7 @@ export default function PaperDetailPage() {
 
       {/* ---- Paper switcher ---- */}
       <div className="mb-5 flex flex-wrap gap-2">
-        {FOUNDATION_PAPERS.map((p) => (
+        {papers.map((p) => (
           <Link
             key={p.id}
             href={`/stats/paper/${p.id}`}

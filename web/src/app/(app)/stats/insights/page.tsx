@@ -16,6 +16,9 @@ import {
 import { TimeOfDayHeatmap } from "@/components/charts/TimeOfDayHeatmap";
 import { SessionLengthHistogram } from "@/components/charts/SessionLengthHistogram";
 import { FindingCard } from "@/components/ui/FindingCard";
+import { papersForAttempt } from "@/lib/icai/levels";
+import { useLocalState } from "@/lib/hooks/useLocalState";
+import type { Attempt } from "@/lib/domain/attempt";
 
 const LOG_KEY = "sc-logged-sessions";
 
@@ -26,15 +29,21 @@ const LOG_KEY = "sc-logged-sessions";
  * student would act on wrongly.
  */
 export default function InsightsPage() {
+  const [attempt] = useLocalState<Attempt | null>("sc-attempt", null);
+  // Foundation-only sample history — see the note in the Stats overview page.
   const [sessions] = useSeedOnce<LoggedSession[]>(
     useSyncedArrayState<LoggedSession>(LOG_KEY, [], LOGGED_SESSION_SYNC),
     generateDemoSessions,
-    (s) => s.length === 0,
+    (s) => s.length === 0 && attempt?.level === "foundation",
   );
+
+  // The "never touched this paper" findings enumerate these, so they must be the
+  // student's own papers rather than a fixed Foundation list.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
 
   const heat = timeOfDayHeatmap(sessions);
   const histogram = sessionLengthHistogram(sessions);
-  const findings = generateFindings(sessions);
+  const findings = generateFindings(sessions, papers);
   const peak = peakFocusWindow(sessions);
 
   const deepWorkCount = histogram[3].count + histogram[4].count;

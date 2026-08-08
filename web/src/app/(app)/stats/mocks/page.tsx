@@ -3,7 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import type { PaperSeed } from "@/lib/icai/foundation";
+import { papersForAttempt } from "@/lib/icai/levels";
+import { useLocalState } from "@/lib/hooks/useLocalState";
+import type { Attempt } from "@/lib/domain/attempt";
 import { useSeedOnce } from "@/lib/hooks/useSeededLocalState";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { MOCK_TEST_SYNC } from "@/lib/sync/syncConfigs";
@@ -41,16 +44,24 @@ const SOURCE_LABEL: Record<MockSource, string> = {
  * store.
  */
 export default function MocksPage() {
+  const [attempt] = useLocalState<Attempt | null>("sc-attempt", null);
+  // Foundation-only sample mocks — see the note in the Stats overview page.
   const [mocks, setMocks] = useSeedOnce<MockTest[]>(
     useSyncedArrayState<MockTest>(MOCKS_KEY, [], MOCK_TEST_SYNC),
     generateDemoMocks,
-    (m) => m.length === 0,
+    (m) => m.length === 0 && attempt?.level === "foundation",
   );
   const [adding, setAdding] = useState(false);
 
+  // Mocks are logged against the student's own papers — the picker and the per-paper
+  // exemption tracker both previously listed Foundation whatever the level.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
+
+  const objectivePapers = papers.filter((p) => p.isObjective && p.hasNegativeMarking);
+
   const series = mockSeries(mocks);
   const mcq = mcqAnalysis(mocks);
-  const exemptions = exemptionStatus(mocks);
+  const exemptions = exemptionStatus(mocks, papers);
   const projection = projectPass(mocks);
   const sorted = [...mocks].sort((a, b) => b.date - a.date);
 
@@ -84,7 +95,7 @@ export default function MocksPage() {
         </div>
       </div>
 
-      {adding && <AddMockForm onAdd={addMock} onCancel={() => setAdding(false)} />}
+      {adding && <AddMockForm papers={papers} onAdd={addMock} onCancel={() => setAdding(false)} />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="16 · Mock marks per paper" className="lg:col-span-2">
@@ -93,9 +104,19 @@ export default function MocksPage() {
         </ChartCard>
 
         <ChartCard title="17 · MCQ accuracy &amp; negative marking">
-          <p className="mb-3 text-[10px] text-dim">
-            Foundation P3 &amp; P4 · −0.25 per wrong answer
-          </p>
+          {/* Named from the student's own objective papers rather than hardcoded to
+              Foundation's — negative marking only applies where the seed data says it
+              does, and at Intermediate/Final no paper carries it at all. */}
+          {objectivePapers.length > 0 ? (
+            <p className="mb-3 text-[10px] text-dim">
+              {objectivePapers.map((p) => `P${p.paperNo}`).join(" & ")} ·{" "}
+              −{objectivePapers[0].negativeMarkPerWrong ?? 0.25} per wrong answer
+            </p>
+          ) : (
+            <p className="mb-3 text-[10px] text-dim">
+              None of your papers carry negative marking.
+            </p>
+          )}
           {mcq.length === 0 ? (
             <p className="text-caption text-dim">
               No objective-paper mocks logged with a question breakdown yet.
@@ -240,20 +261,33 @@ export default function MocksPage() {
 }
 
 function AddMockForm({
+  papers,
   onAdd,
   onCancel,
 }: {
+  papers: PaperSeed[];
   onAdd: (mock: Omit<MockTest, "id">) => void;
   onCancel: () => void;
 }) {
-  const [paperId, setPaperId] = useState(FOUNDATION_PAPERS[0].id);
+  const [paperId, setPaperId] = useState(papers[0]?.id ?? "");
   const [marks, setMarks] = useState(50);
   const [source, setSource] = useState<MockSource>("MTP");
   const [correct, setCorrect] = useState(50);
   const [wrong, setWrong] = useState(20);
 
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === paperId)!;
-  const objective = paper.isObjective;
+  // Unlike planned blocks and timer sessions, a mock is logged against a paper and needs
+  // no chapter data — so Intermediate and Final work here even while their chapters are
+  // still unseeded.
+  const paper = papers.find((p) => p.id === paperId);
+  const objective = paper?.isObjective ?? false;
+
+  if (!paper) {
+    return (
+      <div className="mb-4 rounded-card-lg border border-border bg-surface p-4">
+        <p className="text-caption text-dim">Set up your attempt before logging a mock.</p>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -279,7 +313,7 @@ function AddMockForm({
           onChange={(e) => setPaperId(e.target.value)}
           className="rounded-lg border border-border bg-surface2 px-3 py-2 text-label text-text"
         >
-          {FOUNDATION_PAPERS.map((p) => (
+          {papers.map((p) => (
             <option key={p.id} value={p.id}>
               P{p.paperNo} — {p.name}
             </option>

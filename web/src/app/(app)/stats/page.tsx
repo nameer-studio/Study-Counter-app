@@ -7,7 +7,9 @@ import { useSeedOnce } from "@/lib/hooks/useSeededLocalState";
 import { useSyncedArrayState } from "@/lib/hooks/useSyncedArrayState";
 import { useSyncedRecordState } from "@/lib/hooks/useSyncedRecordState";
 import { LOGGED_SESSION_SYNC, REVISION_ROUNDS_SYNC } from "@/lib/sync/syncConfigs";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { papersForAttempt } from "@/lib/icai/levels";
+import { useLocalState } from "@/lib/hooks/useLocalState";
+import type { Attempt } from "@/lib/domain/attempt";
 import { PAPER_CATEGORY_COLOR_VAR } from "@/lib/domain/types";
 import type { LoggedSession } from "@/lib/domain/loggedSession";
 import { generateDemoSessions } from "@/lib/demo/seedSessions";
@@ -50,13 +52,21 @@ const RANGE_OPTIONS: { value: RangeDays; label: string }[] = [
  * the seeded ones.
  */
 export default function StatsPage() {
+  const [attempt] = useLocalState<Attempt | null>("sc-attempt", null);
+  // The sample history is Foundation-specific, so it's only offered to Foundation
+  // students — seeding it for an Intermediate or Final student would show them fabricated
+  // hours against papers they aren't studying, which reads as real logged data.
   const [sessions] = useSeedOnce<LoggedSession[]>(
     useSyncedArrayState<LoggedSession>(LOG_KEY, [], LOGGED_SESSION_SYNC),
     generateDemoSessions,
-    (s) => s.length === 0,
+    (s) => s.length === 0 && attempt?.level === "foundation",
   );
   const [rounds] = useSyncedRecordState<RevisionRound>(ROUNDS_KEY, {}, REVISION_ROUNDS_SYNC);
   const [range, setRange] = useState<RangeDays>(30);
+
+  // The student's own papers — the per-paper links and the syllabus-revised KPI both
+  // used to be fixed to Foundation regardless of the registered level.
+  const papers = attempt ? papersForAttempt(attempt.level, attempt.group) : [];
 
   const kpis = calculateKpis(sessions, range);
   const streak = currentStreak(sessions);
@@ -66,7 +76,7 @@ export default function StatsPage() {
   // disagree with every other screen about the same number. (It previously counted
   // only chapters at the strict final-revision round, which read as ~0% even when the
   // other screens correctly showed real partial progress.)
-  const readiness = paperReadiness(FOUNDATION_PAPERS, rounds);
+  const readiness = paperReadiness(papers, rounds);
   const revisedPercent =
     readiness.length > 0 ? Math.round(readiness.reduce((sum, r) => sum + r.percent, 0) / readiness.length) : 0;
 
@@ -151,7 +161,7 @@ export default function StatsPage() {
         {/* Entry point to E2 — per-paper detail (charts 6–9). */}
         <ChartCard title="Per-paper detail" className="lg:col-span-2">
           <div className="flex flex-wrap gap-2">
-            {FOUNDATION_PAPERS.map((paper) => (
+            {papers.map((paper) => (
               <Link
                 key={paper.id}
                 href={`/stats/paper/${paper.id}`}

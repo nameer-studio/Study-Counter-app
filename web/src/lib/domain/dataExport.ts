@@ -1,17 +1,16 @@
 import type { LoggedSession } from "@/lib/domain/loggedSession";
-import { FOUNDATION_PAPERS } from "@/lib/icai/foundation";
+import { paperById } from "@/lib/icai/levels";
 
 /** H6 Data — CSV/JSON export and full local reset. Purely client-side: generates a
  *  Blob from the student's own already-local data and triggers a browser download,
  *  no network involved. */
 
 function paperName(paperId: string): string {
-  return FOUNDATION_PAPERS.find((p) => p.id === paperId)?.name ?? paperId;
+  return paperById(paperId)?.name ?? paperId;
 }
 
 function chapterName(paperId: string, chapterId: string): string {
-  const paper = FOUNDATION_PAPERS.find((p) => p.id === paperId);
-  return paper?.chapters.find((c) => c.id === chapterId)?.name ?? chapterId;
+  return paperById(paperId)?.chapters.find((c) => c.id === chapterId)?.name ?? chapterId;
 }
 
 function csvEscape(value: string): string {
